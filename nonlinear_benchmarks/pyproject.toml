@@ -1,0 +1,25 @@
+
+
+[tool.poetry]
+name = "nonlinear_benchmarks"
+version = "1.0.1"
+description = "The official dataload for http://www.nonlinearbenchmark.org/"
+authors = ["Gerben I. Beintema"]
+license = "BSD 3-Clause License"
+readme = "README.md"
+packages = [{include = "nonlinear_benchmarks"}]
+
+
+[tool.poetry.dependencies]
+numpy = "*"
+tqdm = "*"
+progressbar = "*"
+scipy = "*"
+requests = "*"
+rarfile = "*"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+

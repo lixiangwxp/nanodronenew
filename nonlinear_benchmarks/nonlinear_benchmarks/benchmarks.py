@@ -1,0 +1,566 @@
+
+
+
+# http://www.nonlinearbenchmark.org/
+# A. Janot, M. Gautier and M. Brunot, Data Set and Reference Models of EMPS, 2019 Workshop on Nonlinear System Identification Benchmarks, Eindhoven, The Netherlands, April 10-12, 2019.
+
+import os
+from scipy.io import loadmat
+import tempfile
+import os.path
+from pathlib import Path
+from nonlinear_benchmarks.utilities import *
+import numpy as np
+
+def EMPS(train_test_split=True, data_file_locations=False, dir_placement=None, force_download=False, \
+         url=None, atleast_2d=False, always_return_tuples_of_datasets=False):
+    '''The Electro-Mechanical Positioning System is a standard configuration of a drive system for prismatic joint of robots or machine tools. The main source of nonlinearity is caused by friction effects that are present in the setup. Due to the presence of a pure integrator in the system, the measurements are obtained in a closed-loop setting.
+
+    The provided data is described in this link. The provided Electro-Mechanical Positioning System datasets are available for download here. This zip-file contains the system description and available data sets .mat file format.
+
+    Please refer to the Electro-Mechanical Positioning System as:
+
+    A. Janot, M. Gautier and M. Brunot, Data Set and Reference Models of EMPS, 2019 Workshop on Nonlinear System Identification Benchmarks, Eindhoven, The Netherlands, April 10-12, 2019.
+
+    Special thanks to Alexandre Janot for making this dataset available.'''
+    #q_cur current measured position
+    #q_ref target/reference potion
+    #non-linear due to singed friction force Fc ~ sing(dq/dt)
+    #t time
+    #vir applied the vector of motor force expressed in the load side i.e. in N;
+
+    url = 'https://drive.google.com/file/d/1zwoXYa9-3f8NQ0ohzmjpF7UxbNgRTHkS/view' if url is None else url
+    download_size = 1949929
+    save_dir = cashed_download(url,'EMPS',zip_name='EMPS.zip', dir_placement=dir_placement,download_size=download_size,force_download=force_download)
+
+    if data_file_locations:
+        return [os.path.join(save_dir,name) for name in ['DATA_EMPS.mat','DATA_EMPS_PULSES.mat']]
+
+    datasets = []
+    for name, file_name in [('train (DATA_EMPS)','DATA_EMPS.mat'),('test (DATA_EMPS_PULSES)','DATA_EMPS_PULSES.mat')]:
+        matfile = loadmat(os.path.join(save_dir,file_name))
+        q_cur, q_ref, t, vir = [matfile[a][:,0] for a in ['qm','qg','t','vir']] #qg is reference, either, q_ref is input or vir is input
+        out_data = Input_output_data(u=vir, y=q_cur, sampling_time=t[1]-t[0], name=name)
+        datasets.append(out_data)
+
+    if train_test_split:
+        train_val = datasets[0]
+        test = datasets[1]
+        test.state_initialization_window_length = 20
+        return always_return_tuples_of_datasets_fun(*atleast_2d_fun(train_val, test, apply=atleast_2d), apply=always_return_tuples_of_datasets)
+    else:
+        return atleast_2d_fun(datasets, apply=atleast_2d)
+
+def CED(train_test_split=True, data_file_locations=False, dir_placement=None, force_download=False, \
+        url=None, atleast_2d=False, always_return_tuples_of_datasets=False):
+    '''The coupled electric drives consists of two electric motors that drive a pulley using a flexible belt. 
+    The pulley is held by a spring, resulting in a lightly damped dynamic mode. The electric drives can
+    be individually controlled allowing the tension and the speed of the belt to be simultaneously controlled. 
+    The drive control is symmetric around zero, hence both clockwise and counter clockwise movement is possible.
+    The focus is only on the speed control system. The angular speed of the pulley is measured as an output with
+    a pulse counter and this sensor is insensitive to the sign of the velocity. The available data sets are short,
+    which constitute a challenge when performing identification.
+
+    The provided data is part of a technical note available online through this link. 
+    The provided Coupled Electric Drives datasets are available for download here. 
+    This zip-file contains the system description and available data sets, both in 
+    the .csv and .mat file format.
+
+    Please refer to the Coupled Electric Drives dataset as:
+
+    T. Wigren and M. Schoukens, Coupled Electric Drives Data Set and Reference Models, 
+    Technical Report, Department of Information Technology, Uppsala University, 
+    Department of Information Technology, Uppsala University, 2017.
+
+    Previously published results on the Coupled Electric Drives benchmark are listed in 
+    the history section of this webpage.
+
+    Special thanks to Torbjön Wigren for making this dataset available.
+
+    NOTE: We are re-evaluating the continuous-time models reported in the technical note. 
+    For now, the discrete-time model reported in eq. (9) of the technical note can be used 
+    in combination of PRBS dataset with amplitude 1.'''
+
+    #http://www.it.uu.se/research/publications/reports/2017-024/2017-024-nc.pdf
+    #https://uu.diva-portal.org/smash/get/diva2:1165531/FULLTEXT01.zip
+    #url = 'http://www.it.uu.se/research/publications/reports/2017-024/CoupledElectricDrivesDataSetAndReferenceModels.zip' if url is None else url
+    url = 'https://uu.diva-portal.org/smash/get/diva2:1165531/FULLTEXT01.zip' if url is None else url
+    download_size= 278528
+    save_dir = cashed_download(url,'CED',dir_placement=dir_placement,download_size=download_size,force_download=force_download)
+
+    d = os.path.join(save_dir,'DATAUNIF.MAT')
+    if data_file_locations:
+        return d
+
+    matfile = loadmat(d)
+    u11, u12, z11, z12 = [matfile[a][:,0] for a in ['u11','u12','z11','z12']]
+    datasets = [Input_output_data(u=u11, y=z11, sampling_time=0.02, name='CED low input amplitude'), \
+                Input_output_data(u=u12,y=z12, sampling_time=0.02, name='CED high input amplitude')]
+
+    if train_test_split:
+        train_val = datasets[0][:400], datasets[1][:400]
+        train_val[0].name = 'train CED low input amplitude'
+        train_val[1].name = 'train CED high input amplitude'
+        test = datasets[0][400:], datasets[1][400:]
+        test[0].name = 'test CED low input amplitude'
+        test[1].name = 'test CED high input amplitude'
+        test[0].state_initialization_window_length = 10
+        test[1].state_initialization_window_length = 10
+        return atleast_2d_fun(train_val, test, apply=atleast_2d)
+    else:
+        return atleast_2d_fun(datasets, apply=atleast_2d)
+
+def Cascaded_Tanks(train_test_split=True, data_file_locations=False, dir_placement=None, force_download=False, url=None, \
+    atleast_2d=False, always_return_tuples_of_datasets=False):
+    #does not work anymore?
+    urls = ['https://data.4tu.nl/file/d4810b78-6cdd-48fe-8950-9bd601e5f47f/3b697e42-01a4-4979-a370-813a456c36f5', 'https://drive.google.com/file/d/1HnQf_gu0g_UlggoBqy2s34l9YJiFdN01/view']
+    download_size = 7520592
+    if url is not None:
+        urls = [url]
+    save_dir = cashed_download(urls, 'Cascaded_Tanks', zip_name='CascadedTanksFiles.zip',\
+                                       dir_placement=dir_placement,download_size=download_size,force_download=force_download)
+    save_dir = os.path.join(save_dir,'CascadedTanksFiles')
+
+    d = os.path.join(save_dir,'dataBenchmark.mat')
+    if data_file_locations:
+        return d
+    out = loadmat(d)
+
+    uEst, uVal, yEst, yVal, Ts = out['uEst'][:,0],out['uVal'][:,0],out['yEst'][:,0],out['yVal'][:,0],out['Ts'][0,0]
+    datasets = [Input_output_data(u=uEst,y=yEst, sampling_time=Ts, name='train Cascaded_Tanks'),\
+                Input_output_data(u=uVal,y=yVal, sampling_time=Ts, name='test Cascaded_Tanks')]
+    if train_test_split:
+        train_val = datasets[0]
+        test = datasets[1]
+        test.state_initialization_window_length = 50
+        return always_return_tuples_of_datasets_fun(*atleast_2d_fun(train_val, test, apply=atleast_2d), apply=always_return_tuples_of_datasets)
+    else:
+        datasets[0].name, datasets[1].name = 'Cascaded_Tanks first dataset', 'Cascaded_Tanks second dataset'
+        return atleast_2d_fun(datasets, apply=atleast_2d)
+
+def WienerHammerBenchMark(train_test_split=True, data_file_locations=False, dir_placement=None, force_download=False, url=None, \
+    atleast_2d=False, always_return_tuples_of_datasets=False):
+    url = 'http://www.ee.kth.se/~hjalmars/ifac_tc11_benchmarks/2009_wienerhammerstein/WienerHammerBenchMark.mat' if url is None else url
+    download_size=1707601
+    save_dir = cashed_download(url,'WienerHammerBenchMark',dir_placement=dir_placement,download_size=download_size,force_download=force_download,zipped=False)
+
+    if data_file_locations:
+        return os.path.join(save_dir,'WienerHammerBenchMark.mat')
+
+    out = loadmat(os.path.join(save_dir,'WienerHammerBenchMark.mat'))
+    u,y,fs = out['uBenchMark'][:,0], out['yBenchMark'][:,0], out['fs'][0,0]
+    full_data = Input_output_data(u=u,y=y, sampling_time=1/fs, name='WH benchmark full')
+    if train_test_split==False:
+        V = atleast_2d_fun(full_data, apply=atleast_2d)
+        return (V,) if always_return_tuples_of_datasets else V
+    
+    sys_data = full_data[5200:184000] 
+    train, test = sys_data[:100000], sys_data[100000:]
+    train.name = 'train WH'
+    test.name = 'test WH'
+    test.state_initialization_window_length = 50
+    return always_return_tuples_of_datasets_fun(*atleast_2d_fun(train, test, apply=atleast_2d), apply=always_return_tuples_of_datasets)
+
+def Silverbox(train_test_split=True, data_file_locations=False, dir_placement=None, force_download=False, url=None, \
+    atleast_2d=False, always_return_tuples_of_datasets=False, return_multisine_realizations=False):
+    '''The Silverbox system can be seen as an electronic implementation of the Duffing oscillator. It is build as a
+    2nd order linear time-invariant system with a 3rd degree polynomial static nonlinearity around it in feedback.
+    This type of dynamics are, for instance, often encountered in mechanical systems.
+
+    The provided data is part of a previously published ECC paper available online. A technical note describing the
+    Silverbox benchmark can be found here. All the provided data (.mat file format) on the Silverbox system is available
+    for download here. This .zip file contains the Silverbox dataset as specified in the benchmark document (V1 is the
+    input record, while V2 is the measured output), extended with .csv version of the same data and an extra data record
+    containing a Schroeder phase multisine measurement.
+
+    Please refer to the Silverbox benchmark as:
+
+    T. Wigren and J. Schoukens. Three free data sets for development and benchmarking in nonlinear system identification.
+    2013 European Control Conference (ECC), pp.2933-2938 July 17-19, 2013, Zurich, Switzerland.
+
+    Previously published results on the Silverbox benchmark are listed in the history section of this webpage.
+
+    Special thanks to Johan Schoukens for creating this benchmark, and to Torbjörn Wigren for hosting this benchmark.
+
+    Parameters:
+        return_multisine_realizations (bool): If True, returns the 10 separate multisine realizations for frequency
+            domain identification. 
+    '''
+    # Check for incompatible parameter combinations
+    if train_test_split and return_multisine_realizations:
+        raise ValueError(
+            "return_multisine_realizations cannot be used with train_test_split=True. "
+            "return_multisine_realizations returns data for frequency domain identification "
+            "purposes. The data is split differently from the default. For the main benchmark, please set "
+            "return_multisine_realizations=False."
+        )
+
+    # url = 'http://www.nonlinearbenchmark.org/FILES/BENCHMARKS/SILVERBOX/SilverboxFiles.zip' #old
+    url = 'https://drive.google.com/file/d/17iS-6oBUUgrmiAcrZoG9S5sOaljZnDSy/view' if url is None else url
+    download_size=5793999
+    save_dir = cashed_download(url, 'Silverbox', zip_name='SilverboxFiles.zip',\
+        dir_placement=dir_placement, download_size=download_size, force_download=force_download)
+    save_dir = os.path.join(save_dir,'SilverboxFiles') #matfiles location
+
+    d1, d2 = os.path.join(save_dir,'Schroeder80mV.mat'), os.path.join(save_dir,'SNLS80mV.mat')
+    if data_file_locations:
+        return d1, d2
+
+    out = loadmat(d2) #train test
+    u,y = out['V1'][0], out['V2'][0]
+
+    # Handle multisine realizations mode
+    if return_multisine_realizations:
+        # This partitioning is only valid for the SNLS80mV.mat, not the Schroeder!
+        # Extract 10 realizations of 8192 samples each at predefined indices
+        N = 8192  # number of data points per realization
+        start_indices = [40986, 49678, 58370, 67062, 75754, 84446, 93138, 101830, 110522, 119214]
+
+        realizations = []
+        for k, start_idx in enumerate(start_indices):
+            # Extract this realization
+            u_real = u[start_idx:start_idx + N]
+            y_real = y[start_idx:start_idx + N]
+
+            realization = Input_output_data(
+                u=u_real,
+                y=y_real,
+                sampling_time=1/610.35,
+                name=f'SB multisine realization #{k+1}'
+            )
+            realizations.append(realization)
+
+        # Note: for using this data, it might be beneficial to demean both the input and the output
+        return atleast_2d_fun(realizations, apply=atleast_2d)
+
+    data2 = Input_output_data(u=u,y=y, sampling_time=1/610.35, name='Silverbox Data All')
+
+    if train_test_split:
+        test_arrow_full = data2[100:40575]
+        test_arrow_full.name = 'test SB arrow'
+        test_arrow_no_extrapolation = test_arrow_full[:32000] #keep init=50
+        test_arrow_no_extrapolation.name = 'test SB arrow no extrapolation'
+
+        multisine = data2[40650:127400]
+        s = int(len(multisine)*0.75)
+        multisine_train_val, test_multisine = multisine[:s], multisine[s:]
+        multisine_train_val.name = 'train SB multisine'
+        test_multisine.name = 'test SB multisine'
+        for v in [test_multisine, test_arrow_full, test_arrow_no_extrapolation]:
+            v.state_initialization_window_length = 50
+
+        from collections import namedtuple
+        # m = namedtuple('Silverbox_data_splits', ['test_multisine', 'test_arrow_full', 'test_arrow_no_extrapolation'])
+        multisine_train_val = (multisine_train_val,) if always_return_tuples_of_datasets else multisine_train_val
+        return atleast_2d_fun(multisine_train_val, (test_multisine, test_arrow_full, test_arrow_no_extrapolation), apply=atleast_2d)
+    else:
+        data2 = (data2,) if always_return_tuples_of_datasets else data2
+        return atleast_2d_fun(data2, apply=atleast_2d)
+
+def ParWH(train_test_split=True, data_file_locations=False, dir_placement=None, force_download=False, url=None, \
+    atleast_2d=False, always_return_tuples_of_datasets=False):
+    '''Parallel Wienner-Hammerstein'''
+    # url = 'http://www.nonlinearbenchmark.org/FILES/BENCHMARKS/PARWH/ParWHFiles.zip'
+    url = 'https://data.4tu.nl/file/5edca002-b132-4985-b8b9-2353c6e85292/2aaf0790-9ade-43d5-a718-39062524fc93' if url is None else url
+    download_size = 58203304
+    save_dir = cashed_download(url,'ParWH',zip_name='ParWHFiles.zip',dir_placement=dir_placement,download_size=download_size,force_download=force_download)
+    save_dir = os.path.join(save_dir,'ParWHFiles') #matfiles location
+    d = os.path.join(save_dir,'ParWHData.mat')
+    if data_file_locations:
+        return d
+
+    out = loadmat(d)
+    # print(out.keys())
+    # print(out['amp'][0]) #5 values 
+    # print(out['fs'][0,0])
+    # print(out['lines'][0]) #range 2:4096
+    # print('uEst',out['uEst'].shape) #(16384, 2, 20, 5), (N samplees, P periods, M Phase changes, nAmp changes)
+    # print('uVal',out['uVal'].shape) #(16384, 2, 1, 5)
+    # print('uValArr',out['uValArr'].shape) #(16384, 2)
+    # print('yEst',out['yEst'].shape) #(16384, 2, 20, 5)
+    # print('yVal',out['yVal'].shape) #(16384, 2, 1, 5)
+    # print('yValArr',out['yValArr'].shape) #(16384, 2)
+
+    fs = out['fs'][0,0]
+
+    datafiles = []
+    datafiles_test = []
+    #todo split train, validation and test
+    uEst = out['uEst'].reshape((16384*2,20,5)) #concats both periods
+    yEst = out['yEst'].reshape((16384*2,20,5))
+    for phase in range(0,20):
+        for amp in range(0,5):
+            datafiles.append(Input_output_data(u=uEst[:, phase, amp],y=yEst[:, phase, amp], sampling_time=1/fs, name=f'Est-phase-{phase}-amp-{amp}', state_initialization_window_length=50))
+    
+    uVal = out['uVal'].reshape((16384*2,1,5))
+    yVal = out['yVal'].reshape((16384*2,1,5))
+    data = [Input_output_data(u=ui[0],y=yi[0], sampling_time=1/fs,name=f'Val-amp-{amp}', state_initialization_window_length=50) for amp,(ui,yi) in enumerate(zip(uVal.T,yVal.T))]
+    datafiles_test.extend(data) if train_test_split else datafiles.extend(data)
+    
+    #is filtered signal, hence, would require extrapolation.
+    # uValArr = out['uValArr'].reshape((16384,-1)) 
+    # yValArr = out['yValArr'].reshape((16384,-1))
+    # data = [Input_output_data(u=ui,y=yi, sampling_time=1/fs) for ui,yi in zip(uValArr.T,yValArr.T)]
+    # datafiles_test.extend(data) if train_test_split else datafiles.extend(data)
+
+    if train_test_split:
+        return atleast_2d_fun(*datafiles, apply=atleast_2d), atleast_2d_fun(*datafiles_test, apply=atleast_2d)
+    else:
+        return atleast_2d_fun(*datafiles, apply=atleast_2d)
+
+def F16(train_test_split=True, output_index=0, data_file_locations=False, dir_placement=None, force_download=False, url=None, \
+    atleast_2d=False, always_return_tuples_of_datasets=False):
+    '''The F-16 Ground Vibration Test benchmark features a high order system with clearance and friction nonlinearities at the mounting interface of the payloads.
+
+    The experimental data made available to the Workshop participants were acquired on a full-scale F-16 aircraft on the occasion of the Siemens LMS Ground Vibration Testing Master Class, held in September 2014 at the Saffraanberg military basis, Sint-Truiden, Belgium.
+
+    During the test campaign, two dummy payloads were mounted at the wing tips to simulate the mass and inertia properties of real devices typically equipping an F-16 in ﬂight. The aircraft structure was instrumented with accelerometers. One shaker was attached underneath the right wing to apply input signals. The dominant source of nonlinearity in the structural dynamics was expected to originate from the mounting interfaces of the two payloads. These interfaces consist of T-shaped connecting elements on the payload side, slid through a rail attached to the wing side. A preliminary investigation showed that the back connection of the right-wing-to-payload interface was the predominant source of nonlinear distortions in the aircraft dynamics, and is therefore the focus of this benchmark study.
+
+    A detailed formulation of the identification problem can be found here. All the provided files and information on the F-16 aircraft benchmark system are available for download here. This zip-file contains a detailed system description, the estimation and test data sets, and some pictures of the setup. The data is available in the .csv and .mat file format.
+
+    Please refer to the F16 benchmark as:
+
+    J.P. Noël and M. Schoukens, F-16 aircraft benchmark based on ground vibration test data, 2017 Workshop on Nonlinear System Identification Benchmarks, pp. 19-23, Brussels, Belgium, April 24-26, 2017.
+
+    Previously published results on the F-16 Ground Vibration Test benchmark are listed in the history section of this webpage.
+
+    Special thanks to Bart Peeters (Siemens Industry Software) for his help in creating this benchmark.'''
+    #todo this is still broken for some mat files
+    # assert False, 'this is still broken for some files where y has many more dimensions than expected'
+    # url = 'http://www.nonlinearbenchmark.org/FILES/BENCHMARKS/F16/F16GVT_Files.zip'
+
+    if url is None:
+        url = 'https://data.4tu.nl/file/b6dc643b-ecc6-437c-8a8a-1681650ec3fe/5414dfdc-6e8d-4208-be6e-fa553de9866f'
+    download_size = 148455295
+    save_dir = cashed_download(url,'F16',zip_name='F16GVT_Files.zip',dir_placement=dir_placement, download_size=download_size, force_download=force_download)
+    save_dir = os.path.join(save_dir,'F16GVT_Files/BenchmarkData') #matfiles location
+    matfiles = [os.path.join(save_dir,a).replace('\\','/') for a in os.listdir(save_dir) if a.split('.')[-1]=='mat']
+    if data_file_locations:
+        return matfiles
+    datasets = []
+    train, test = [], []
+    for file in sorted(matfiles):
+        out = loadmat(file)
+        Force, Voltage, (y1,y2,y3),Fs = out['Force'][0], out['Voltage'][0], out['Acceleration'], out['Fs'][0,0]
+        #u = Force
+        #y = one of the ys, multi objective regression?
+        name = file.split('/')[-1]
+        if 'SpecialOddMSine' not in name:
+            data = Input_output_data(u=Force,y=[y1,y2,y3][output_index], sampling_time=1/Fs, name=name, state_initialization_window_length=50)
+            if train_test_split:
+                if 'Validation' in name:
+                    test.append(data)
+                else:
+                    train.append(data)
+            else:
+                datasets.append(data)
+    if train_test_split:
+        return atleast_2d_fun(*train, apply=atleast_2d), atleast_2d_fun(*test, apply=atleast_2d)
+    else:
+        return atleast_2d_fun(*datasets, apply=atleast_2d)
+    
+def FineSteeringMirror(
+    train_test_split=True,
+    data_file_locations=False,
+    dir_placement=None,
+    force_download=False,
+    url=None,
+    atleast_2d=False,  # not applicable for this dataset
+    always_return_tuples_of_datasets=False,  # not applicable for this dataset
+):
+    """This benchmark dataset contains input-output data from the CubeSpec Fine Steering Mirror, a multi-input multi-output high-precision control platform used in a small satellite. Voltages applied to three piezo-actuators serve as inputs, while the mirror displacements measured at three non-collocated reference points serve as outputs.
+
+    The excitation signals are orthogonal random-phase multisines spanning a wide frequency range, and are applied at three different amplitude levels. The system behaves mostly linearly, but the presence of hysteresis in the piezo-actuators introduces dynamic nonlinearities, making the dataset well-suited for benchmarking nonlinear identification methods.
+    
+    Specifically, excitation levels of 100mV, 200mV, and 300mV are used, with frequencies up to 3000 Hz excited at a sampling frequency of 6400 Hz. At each amplitude level, the following train and test datasets are provided:
+        - Train: P=2 steady-state periods and R=6 realizations of a random-phase multisine of N=8192 samples each, stored as (N, {nu, ny}, R, P) tensors, where nu=ny=3 are the number of inputs and outputs, respectively. Input signals are constructed to be orthogonal; within each consecutive group of three realizations (two groups in total: {R1, R2, R3} and {R4, R5, R6}), the random phases are chosen such that FRM estimation is optimally conditioned. 
+        - Test: (N, {nu, ny}, R_test, P) tensors with R_test=3. The input signals are again orthogonal.
+        
+    The dataset is particularly well suited for frequency-domain identification, as it uses periodic multisine excitations and contains no transients. Key challenges mainly arise from its high dimensionality and include, e.g., model order selection, the decoupling of multivariate nonlinearities, and maintaining computational tractability during both identification and deployment.
+    
+    For a baseline example of fitting a 28th order linear state-space model to this dataset, see https://github.com/merijnfloren/fsm-benchmark-data.
+    """
+    
+    url = 'https://github.com/merijnfloren/fsm-benchmark-data/raw/refs/heads/main/data/combined_data.npz' if url is None else url
+    download_size = 19532226
+    
+    save_dir = cashed_download(
+        url,
+        'FineSteeringMirror',
+        dir_placement=dir_placement,
+        download_size=download_size,
+        force_download=force_download,
+        zipped=False,  # actually True but the file is .npz so we'll just load it with numpy
+    )
+    
+    data_loc = os.path.join(save_dir, 'combined_data.npz')
+    if data_file_locations:
+        return data_loc
+    
+    data = np.load(data_loc)
+    fs = 6400
+    amplitudes = ['100mV', '200mV', '300mV'] 
+    state_initialization_window_length = 100
+
+    data_train = []
+    data_test = []
+    for amp in amplitudes:
+        data_train.append(Input_output_data(
+            u=data[f'u_{amp}_train'],
+            y=data[f'y_{amp}_train'],
+            sampling_time=1/fs,
+            name=f'train {amp}',
+            state_initialization_window_length=state_initialization_window_length
+        ))
+        data_test.append(Input_output_data(
+            u=data[f'u_{amp}_test'],
+            y=data[f'y_{amp}_test'],
+            sampling_time=1/fs,
+            name=f'test {amp}',
+            state_initialization_window_length=state_initialization_window_length
+        ))
+        
+    if train_test_split:
+        return data_train, data_test
+    else:
+        return data_train + data_test
+
+
+def NanoDrone(
+    train_test_split=True,
+    data_file_locations=False,
+    dir_placement=None,
+    force_download=False,
+    url=None,
+    atleast_2d=False,
+    always_return_tuples_of_datasets=False,
+    include_accelerations=False,
+):
+    """Nano-quadrotor system identification benchmark dataset.
+
+    This benchmark contains real-world flight data collected from a Crazyflie 2.1
+    Brushless nano-quadrotor (~50g) flying aggressive trajectories in a
+    motion-capture environment. It is designed to benchmark nonlinear system
+    identification methods on a challenging multi-input multi-output (MIMO)
+    platform with open-loop instability and fast nonlinear dynamics.
+
+    Inputs (u): 4 motor angular velocities [rad/s]
+        [m1_rads, m2_rads, m3_rads, m4_rads]
+
+    Outputs (y): 13-dimensional full state vector
+        - Position (world frame):      x, y, z             [m]
+        - Linear velocity (world frame): vx, vy, vz        [m/s]
+        - Orientation (quaternion):    qx, qy, qz, qw      [-]
+        - Angular velocity (body frame): wx, wy, wz        [rad/s]
+
+    The dataset comprises four flight trajectories sampled at 100 Hz:
+        - Train: Square, Random, Chirp  (3 trajectories x 3 runs = 9 datasets)
+        - Test:  Melon                  (1 trajectory   x 3 runs = 3 datasets)
+
+    The Melon trajectory is reserved exclusively for testing, enforcing
+    trajectory-level generalization. The standardized evaluation protocol
+    uses multi-step open-loop prediction up to 0.5 s (50 steps at 100 Hz).
+
+    Args:
+        train_test_split (bool): If True (default), returns (train, test) tuple.
+            If False, returns all datasets as a single list.
+        data_file_locations (bool): If True, returns the path to the downloaded
+            data directory instead of loading the data.
+        dir_placement (str or None): Directory where the data will be cached.
+            If None, uses the default cache directory.
+        force_download (bool): If True, forces re-downloading of the dataset
+            even if already cached.
+        url (str or None): Override the default download URL.
+        atleast_2d (bool): Not applicable for this dataset (u and y are already
+            2D arrays with shapes (N, 4) and (N, 13) respectively).
+        always_return_tuples_of_datasets (bool): Not applicable for this dataset
+            (train and test are always lists).
+        include_accelerations (bool): If True, appends body-frame linear
+            accelerations [ax_body, ay_body, az_body] (m/s^2) to the output y,
+            extending it from shape (N, 13) to (N, 16). These are IMU-derived
+            measurements used in the paper's physics-based residual model and
+            are considered auxiliary outputs not part of the standard benchmark.
+
+    Returns:
+        If train_test_split=True:
+            train (list of Input_output_data): 9 datasets (3 trajectories x 3 runs).
+                Each dataset is named e.g. 'train square run1'.
+            test  (list of Input_output_data): 3 datasets (melon x 3 runs).
+                Each dataset is named e.g. 'test melon run1'.
+        If train_test_split=False:
+            list of all 12 Input_output_data objects (train + test).
+
+    References:
+        R. Busetto, E. Cereda, M. Forgione, G. Maroni, D. Piga, D. Palossi,
+        'Nonlinear System Identification for a Nano-drone Benchmark',
+        Control Engineering Practice, 2026.
+        https://github.com/idsia-robotics/nanodrone-sysid-benchmark
+    """
+    import pandas as pd
+
+    url = (
+        'https://github.com/idsia-robotics/nanodrone-sysid-benchmark/'
+        'releases/download/v1.0/data.zip'
+    ) if url is None else url
+
+    download_size = 13419786  # bytes
+
+    save_dir = cashed_download(
+        url,
+        'NanoDrone',
+        dir_placement=dir_placement,
+        download_size=download_size,
+        force_download=force_download,
+        zipped=True,
+    )
+
+    if data_file_locations:
+        return save_dir
+
+    # Column definitions
+    input_cols = ['m1_rads', 'm2_rads', 'm3_rads', 'm4_rads']
+    output_cols = ['x', 'y', 'z', 'vx', 'vy', 'vz',
+                   'qx', 'qy', 'qz', 'qw', 'wx', 'wy', 'wz']
+    accel_cols = ['ax_body', 'ay_body', 'az_body']
+
+    fs = 100  # Hz
+    sampling_time = 1 / fs
+    state_initialization_window_length = 50  # 0.5 s at 100 Hz
+
+    train_trajectories = ['square', 'random', 'chirp']
+    test_trajectories = ['melon']
+    train_runs = [1, 2, 3, 4]  # train trajectories have 4 runs each
+    test_runs = [1, 2, 3]  # melon has 3 runs
+    date_tag = '20251017'
+
+    def load_split(trajectories, split_name, runs):
+        datasets = []
+        for traj in trajectories:
+            for run in runs:
+                fname = f'{traj}_{date_tag}_run{run}.csv'
+                fpath = os.path.join(save_dir, split_name, fname)
+                df = pd.read_csv(fpath)
+
+                u = df[input_cols].to_numpy()
+                y = df[output_cols].to_numpy()
+
+                if include_accelerations:
+                    y = np.concatenate([y, df[accel_cols].to_numpy()], axis=1)
+
+                datasets.append(Input_output_data(
+                    u=u,
+                    y=y,
+                    sampling_time=sampling_time,
+                    name=f'{split_name} {traj} run{run}',
+                    state_initialization_window_length=state_initialization_window_length,
+                ))
+        return datasets
+
+    data_train = load_split(train_trajectories, 'train', train_runs)
+    data_test = load_split(test_trajectories, 'test', test_runs)
+
+    if train_test_split:
+        return data_train, data_test
+    else:
+        return data_train + data_test
+

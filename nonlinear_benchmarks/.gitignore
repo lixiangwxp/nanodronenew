@@ -1,0 +1,8 @@
+development/
+nonlinear_benchmarks.egg-info/
+__pycache__/
+dist/
+examples/testing.py
+examples/.ipy*
+examples/testing/
+testing/
