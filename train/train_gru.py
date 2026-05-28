@@ -18,7 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from dataset.dataset import QuadDataset, combine_concat_dataset
 from models.models import PhysQuadModel, ResidualQuadModel
-from models.models_lag import LagPhysResGRUModel
+from models.models_gru import RawGRUPhysResModel
 from train.losses import WeightedMSELoss
 
 
@@ -58,7 +58,7 @@ def load_split(trajs, runs, data_dir, horizon, split):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Train Lag+GRU Physics+Residual model")
+    parser = argparse.ArgumentParser(description="Train raw-GRU Physics+Residual model")
     parser.add_argument("--train_trajs", type=str, default='["random", "square", "chirp"]')
     parser.add_argument("--device", type=str, default="cuda:0")
     parser.add_argument("--epochs", type=int, default=500)
@@ -66,9 +66,6 @@ def main():
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--gru-hidden-dim", type=int, default=64)
-    parser.add_argument("--lag-mode", type=str, default="per_motor", choices=["shared", "per_motor"])
-    parser.add_argument("--alpha-init", type=float, default=0.85)
-    parser.add_argument("--disable-lag", action="store_true")
     parser.add_argument("--name-suffix", type=str, default="")
     parser.add_argument("--wandb", action="store_true")
     parser.add_argument("--wandb-tags", type=str, default="")
@@ -89,11 +86,9 @@ def main():
     dt = 0.01
     lr_start = 1e-5
     lr_end = 1e-8
-    residual_input_dim = args.gru_hidden_dim + 12
+    residual_input_dim = 4 + args.gru_hidden_dim
 
-    name_parts = ["lag_gru", *train_trajs]
-    if args.disable_lag:
-        name_parts.insert(1, "nolag")
+    name_parts = ["raw_gru", *train_trajs]
     if args.name_suffix:
         name_parts.append(args.name_suffix)
     model_name = "_".join(name_parts)
@@ -149,19 +144,15 @@ def main():
         num_layers=5,
         dt=dt,
     ).to(device)
-    model = LagPhysResGRUModel(
+    model = RawGRUPhysResModel(
         phys=phys_model,
         residual=residual_model,
         x_scaler=train_dataset.x_scaler,
         u_scaler=train_dataset.u_scaler,
-        lag_mode=args.lag_mode,
-        alpha_init=args.alpha_init,
         hidden_dim=args.gru_hidden_dim,
-        disable_lag=args.disable_lag,
     ).to(device)
 
-    print("Initialized LagPhysResGRUModel")
-    print(f"Disable lag: {args.disable_lag}")
+    print("Initialized RawGRUPhysResModel")
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print(f"Trainable parameters: {trainable_params:,}")
 
@@ -184,6 +175,7 @@ def main():
             text=True,
             capture_output=True,
         ).stdout.strip()
+
         wandb_run = wandb.init(
             project="nanodrone",
             group="lag-gru-ablation",
@@ -193,8 +185,8 @@ def main():
             dir=str(PROJECT_ROOT / "out" / "wandb"),
             config={
                 "model_name": model_name,
-                "model_type": "lag_gru",
-                "variant": "lag_gru_nolag" if args.disable_lag else "lag_gru",
+                "model_type": "raw_gru",
+                "variant": "raw_gru",
                 "epochs": args.epochs,
                 "batch_size": args.batch_size,
                 "lr": lr_start,
@@ -204,9 +196,6 @@ def main():
                 "horizon": args.horizon,
                 "hidden_dim": args.hidden_dim,
                 "gru_hidden_dim": args.gru_hidden_dim,
-                "lag_mode": args.lag_mode,
-                "alpha_init": args.alpha_init,
-                "disable_lag": args.disable_lag,
                 "trainable_params": trainable_params,
                 "seed": seed,
                 "scaler_dir": str(scaler_dir),
@@ -280,15 +269,12 @@ def main():
             checkpoint = {
                 "model_state": model.state_dict(),
                 "config": {
-                    "variant": "lag_gru_nolag" if args.disable_lag else "lag_gru",
+                    "variant": "raw_gru",
                     "dt": dt,
                     "hidden_dim": args.hidden_dim,
                     "num_layers": 5,
                     "residual_input_dim": residual_input_dim,
                     "gru_hidden_dim": args.gru_hidden_dim,
-                    "lag_mode": args.lag_mode,
-                    "alpha_init": args.alpha_init,
-                    "disable_lag": args.disable_lag,
                     "horizon": args.horizon,
                     "batch_size": args.batch_size,
                     "train_trajs": train_trajs,

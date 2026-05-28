@@ -15,14 +15,13 @@ setup_matplotlib()
 # === Config ===
 train_trajs = ["random", "square", "chirp"]
 test_trajs = ["melon"]
+lag_gru_model_name = "lag_gru_random_square_chirp_bs4096_snapshot"
 
 # === File paths ===
 OUT_FOLDER = os.path.join(
     "..",
-    # "identification",
     "out",
     "predictions",
-    "real"
 )
 
 # Ensure the output folder exists
@@ -44,9 +43,9 @@ file_base = os.path.join(
     f"{test_name}_multistep.csv"
 )
 
-file_neur = os.path.join(
+file_mlp = os.path.join(
     OUT_FOLDER,
-    f"neural_{train_name}_model_multistep",
+    f"mlp_{train_name}_model_multistep",
     f"{test_name}_multistep.csv"
 )
 
@@ -56,28 +55,37 @@ file_phys = os.path.join(
     f"{test_name}_multistep.csv"
 )
 #
-file_res = os.path.join(
+file_hybrid = os.path.join(
     OUT_FOLDER,
-    f"phys+res_{train_name}_model_multistep",
+    f"hybrid_{train_name}_model_multistep",
+    f"{test_name}_multistep.csv"
+)
+
+file_lag_gru = os.path.join(
+    OUT_FOLDER,
+    f"{lag_gru_model_name}_model_multistep",
     f"{test_name}_multistep.csv"
 )
 
 print("LSTM file path:", file_lstm)
 print("Baseline file path:", file_base)
+print("Lag+GRU file path:", file_lag_gru)
 
 # === Read CSVs ===
 df_lstm = pd.read_csv(file_lstm)
 df_base = pd.read_csv(file_base)
-df_neur = pd.read_csv(file_neur)
+df_mlp = pd.read_csv(file_mlp)
 df_phys = pd.read_csv(file_phys)
-df_res = pd.read_csv(file_res)
+df_hybrid = pd.read_csv(file_hybrid)
+df_lag_gru = pd.read_csv(file_lag_gru)
 
 print("✅ Loaded datasets:")
 print(f"  LSTM model: {df_lstm.shape}")
 print(f"  Baseline model: {df_base.shape}")
-print(f"  Neural model: {df_neur.shape}")
+print(f"  MLP model: {df_mlp.shape}")
 print(f"  Physics model: {df_phys.shape}")
-print(f"  Residual model: {df_res.shape}")
+print(f"  Hybrid model: {df_hybrid.shape}")
+print(f"  Lag+GRU model: {df_lag_gru.shape}")
 #%%
 def add_rotation_columns(df):
     df = df.copy()
@@ -123,9 +131,9 @@ def add_rotation_columns(df):
 # ---------------------------------------------------------
 # === Apply to all dataframes ===
 # ---------------------------------------------------------
-df_base, df_lstm, df_neur, df_phys, df_res = [
+df_base, df_lstm, df_mlp, df_phys, df_hybrid, df_lag_gru = [
     add_rotation_columns(df)
-    for df in [df_base, df_lstm, df_neur, df_phys, df_res]
+    for df in [df_base, df_lstm, df_mlp, df_phys, df_hybrid, df_lag_gru]
 ]
 #%%
 # --- Config ---
@@ -133,27 +141,30 @@ max_horizon = 50
 
 metrics_base  = compute_errors(df_base,  max_horizon)
 metrics_lstm  = compute_errors(df_lstm,  max_horizon)
-metrics_neur  = compute_errors(df_neur,  max_horizon)
+metrics_mlp   = compute_errors(df_mlp,   max_horizon)
 metrics_phys  = compute_errors(df_phys,  max_horizon)
-metrics_res   = compute_errors(df_res,   max_horizon)
+metrics_hybrid = compute_errors(df_hybrid, max_horizon)
+metrics_lag_gru = compute_errors(df_lag_gru, max_horizon)
 #%%
 import matplotlib.pyplot as plt
 model_metrics = {
     "Physics":   metrics_phys,
-    "Residual":  metrics_neur,
-    "Phys+Res":  metrics_res,
-    "LSTM":      metrics_lstm,
+    "Res-MLP":   metrics_mlp,
+    "Hybrid":    metrics_hybrid,
+    "Res-LSTM":  metrics_lstm,
+    "Lag+GRU":   metrics_lag_gru,
     "Naïve":  metrics_base,
 }
 
 plot_metrics(model_metrics, save_fig=False)
 #%%
 dfs = {
-    "Physics":   df_phys,
-    "Residual":  df_neur,
-    "Phys+Res":  df_res,
-    "LSTM":      df_lstm,
-    "Naive":     df_base,
+    "Physics":  df_phys,
+    "Res-MLP":  df_mlp,
+    "Hybrid":   df_hybrid,
+    "Res-LSTM": df_lstm,
+    "Lag+GRU":  df_lag_gru,
+    "Naive":    df_base,
 }
 
 N_start = 2000
@@ -168,14 +179,15 @@ import pandas as pd
 # ============================================================
 H_TARGETS = [1, 10, 50]
 
-model_order = ["Naïve", "Physics", "Residual", "Phys+Res", "LSTM"]
+model_order = ["Naïve", "Physics", "Res-MLP", "Hybrid", "Res-LSTM", "Lag+GRU"]
 
 model_metrics = {
     "Naïve": metrics_base,
     "Physics":  metrics_phys,
-    "Residual": metrics_neur,
-    "Phys+Res": metrics_res,
-    "LSTM":     metrics_lstm,
+    "Res-MLP": metrics_mlp,
+    "Hybrid": metrics_hybrid,
+    "Res-LSTM": metrics_lstm,
+    "Lag+GRU": metrics_lag_gru,
 }
 
 # ============================================================

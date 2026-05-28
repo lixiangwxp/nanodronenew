@@ -191,6 +191,7 @@ class LagPhysResGRUModel(LagPhysResQuadModel):
         lag_mode="per_motor",
         alpha_init=0.85,
         hidden_dim=64,
+        disable_lag=False,
     ):
         nn.Module.__init__(self)
         if not isinstance(phys, PhysQuadModel):
@@ -202,6 +203,7 @@ class LagPhysResGRUModel(LagPhysResQuadModel):
         self.residual = residual
         self.dt = phys.dt
         self.gru_hidden_dim = int(hidden_dim)
+        self.disable_lag = bool(disable_lag)
         self.lag_layer = MotorLagLayer(lag_mode=lag_mode, alpha_init=alpha_init)
         for param in self.phys.parameters():
             param.requires_grad_(False)
@@ -255,19 +257,22 @@ class LagPhysResGRUModel(LagPhysResQuadModel):
             u_raw_norm = u_seq[:, t, :]
             u_raw_real = self.u_denorm(u_raw_norm)
 
-            u_eff_prev_norm = self.u_normed(u_eff_prev_real)
-            u_eff_seed_real = self.lag_layer(u_eff_prev_real, u_raw_real)
-            u_eff_seed_norm = self.u_normed(u_eff_seed_real)
-            alpha_in = self._pack_gru_features(
-                x_norm,
-                u_raw_norm,
-                u_eff_seed_norm,
-                h,
-            )
-            alpha_t = torch.sigmoid(self.alpha_head(alpha_in))
+            if self.disable_lag:
+                u_eff_real = u_raw_real
+                u_eff_norm = u_raw_norm
+            else:
+                u_eff_seed_real = self.lag_layer(u_eff_prev_real, u_raw_real)
+                u_eff_seed_norm = self.u_normed(u_eff_seed_real)
+                alpha_in = self._pack_gru_features(
+                    x_norm,
+                    u_raw_norm,
+                    u_eff_seed_norm,
+                    h,
+                )
+                alpha_t = torch.sigmoid(self.alpha_head(alpha_in))
 
-            u_eff_real = alpha_t * u_eff_prev_real + (1.0 - alpha_t) * u_raw_real
-            u_eff_norm = self.u_normed(u_eff_real)
+                u_eff_real = alpha_t * u_eff_prev_real + (1.0 - alpha_t) * u_raw_real
+                u_eff_norm = self.u_normed(u_eff_real)
 
             x_real = self.x_denorm(x_norm)
             x_phys_next_real = self.physics_step_from_motors(x_real, u_eff_real)

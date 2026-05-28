@@ -15,7 +15,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from dataset.dataset import QuadDataset, combine_concat_dataset
 from models.models import PhysQuadModel, ResidualQuadModel
-from models.models_lag import LagPhysResGRUModel
+from models.models_gru import RawGRUPhysResModel
 from utils.eval_utils import compute_prediction_metrics
 
 
@@ -43,13 +43,13 @@ def find_latest_model(model_root):
         [
             path
             for path in model_root.iterdir()
-            if path.is_file() and path.name.startswith("lag_gru") and path.suffix == ".pt"
+            if path.is_file() and path.name.startswith("raw_gru") and path.suffix == ".pt"
         ],
         key=lambda path: os.path.getmtime(path),
         reverse=True,
     )
     if not model_files:
-        raise RuntimeError(f"No lag_gru checkpoint found in {model_root}")
+        raise RuntimeError(f"No raw_gru checkpoint found in {model_root}")
     return model_files[0]
 
 
@@ -69,7 +69,7 @@ def load_test_datasets(test_trajs, data_root, horizon):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Test Lag+GRU Physics+Residual model")
+    parser = argparse.ArgumentParser(description="Test raw-GRU Physics+Residual model")
     parser.add_argument("--model_path", type=str, default=None)
     parser.add_argument("--device", type=str, default="cuda:0")
     parser.add_argument("--horizon", type=int, default=50)
@@ -97,7 +97,7 @@ def main():
     dt = config.get("dt", 0.01)
     residual_input_dim = config.get(
         "residual_input_dim",
-        config.get("gru_hidden_dim", 64) + 12,
+        config.get("gru_hidden_dim", 64) + 4,
     )
 
     scaler_dir = Path(checkpoint.get("scaler_dir", PROJECT_ROOT / "scalers" / model_name))
@@ -124,15 +124,12 @@ def main():
         num_layers=config.get("num_layers", 5),
         dt=dt,
     ).to(device)
-    model = LagPhysResGRUModel(
+    model = RawGRUPhysResModel(
         phys=phys_model,
         residual=residual_model,
         x_scaler=test_dataset.x_scaler,
         u_scaler=test_dataset.u_scaler,
-        lag_mode=config.get("lag_mode", "per_motor"),
-        alpha_init=config.get("alpha_init", 0.85),
         hidden_dim=config.get("gru_hidden_dim", 64),
-        disable_lag=config.get("disable_lag", False),
     ).to(device)
 
     model.load_state_dict(checkpoint["model_state"])
@@ -196,8 +193,8 @@ def main():
             "dir": str(PROJECT_ROOT / "out" / "wandb"),
             "config": {
                 "model_name": model_name,
-                "model_type": "lag_gru",
-                "variant": config.get("variant", "lag_gru"),
+                "model_type": "raw_gru",
+                "variant": config.get("variant", "raw_gru"),
                 "model_path": str(model_path),
                 "prediction_path": str(out_path),
                 "summary_path": str(summary_path),
@@ -228,7 +225,7 @@ def main():
         wandb_run.finish()
 
     print(f"Loaded model: {model_path}")
-    print(f"Variant: {config.get('variant', 'lag_gru')}")
+    print(f"Variant: {config.get('variant', 'raw_gru')}")
     print(f"Saved predictions to: {out_path}")
     print(f"Saved eval summary to: {summary_path}")
     print(

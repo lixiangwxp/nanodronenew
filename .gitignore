@@ -24,3 +24,10 @@ lightning_logs/
 *.onnx
 *.h5
 *.zip
+
+# Generated analysis outputs
+results/generated_figures/
+results/*_executed.ipynb
+results/*.png
+results/*.pdf
+results/*.csv

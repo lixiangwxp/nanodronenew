@@ -2,9 +2,7 @@
 
 ## 目标
 
-这个仓库的目标是让新窗口、新 agent、GPT Pro review 或人工接手时，能快速恢复当前实验状态、策略、gate、路径、checkpoint 和下一步动作。
-
-文档服务决策，不记录流水日志。
+这个仓库的目标是让新窗口、新 agent、GPT Pro review 或人工接手时，能快速恢复当前实验状态、策略、gate、路径、checkpoint 和下一步动作。文档服务决策，不记录流水日志。
 
 ## 读取顺序
 
@@ -41,7 +39,7 @@
 
 ### Architecture Mode
 
-改模型结构、loss、metric、rollout、data、eval、CLI、checkpoint loading 时使用。必须先本地修改、检查、commit，再同步远端正式跑。
+改模型结构、loss、metric、rollout、data、eval、CLI、checkpoint loading 时使用。必须先本地修改、检查、commit，然后远端通过pull来正式跑。
 
 ### Tuning Mode
 
@@ -80,13 +78,11 @@
 1. 执行什么。
 2. 为什么执行。
 3. 具体命令。
-
 不要只给一串命令。
 
 ## 结果规则
 
 不要只凭 train / valid loss 下结论。正式结论至少说明：
-
 - checkpoint
 - eval / prediction 输出
 - summary CSV

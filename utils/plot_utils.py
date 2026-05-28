@@ -428,6 +428,7 @@ def plot_multistate_predictions(dfs, h=50, N_start=0, N_end=None, save_fig=False
             lstm = dfs["Res-LSTM"][pred_col][N_start:N_end].rolling(20, min_periods=1, center=True).mean()
             base = dfs["Naive"][pred_col][N_start:N_end].rolling(20, min_periods=1, center=True).mean()
             phys = dfs["Physics"][pred_col][N_start:N_end].rolling(20, min_periods=1, center=True).mean()
+            lag_gru = dfs["Lag+GRU"][pred_col][N_start:N_end].rolling(20, min_periods=1, center=True).mean()
             true = dfs["Naive"][state][N_start + h:N_end + h].rolling(20, min_periods=1, center=True).mean()
 
             # --- Plot ---
@@ -436,6 +437,7 @@ def plot_multistate_predictions(dfs, h=50, N_start=0, N_end=None, save_fig=False
             ax.plot(t[N_start + h:N_end + h], neur, '-', color='tab:orange', label='Res-MLP', linewidth=1.2)
             ax.plot(t[N_start + h:N_end + h], res, '-', color='tab:purple', label='Hybrid', linewidth=1.2)
             ax.plot(t[N_start + h:N_end + h], lstm, '-', color='tab:green', label='Res-LSTM', linewidth=1.2)
+            ax.plot(t[N_start + h:N_end + h], lag_gru, '-', color='tab:brown', label='Lag+GRU', linewidth=1.4)
             ax.plot(t[N_start + h:N_end + h], true, 'k--', label='GT', linewidth=1.5)
 
             # --- Aesthetics ---
@@ -477,13 +479,13 @@ def plot_multistate_predictions(dfs, h=50, N_start=0, N_end=None, save_fig=False
     plt.subplots_adjust(top=0.86, bottom=0.12, hspace=0.25, wspace=0.3)
 
     # Reorder legend so Baseline is FIRST
-    legend_order = ["GT", "Naïve", "Physics", "Res-MLP", "Hybrid", "Res-LSTM"]
+    legend_order = ["GT", "Naïve", "Physics", "Res-MLP", "Hybrid", "Res-LSTM", "Lag+GRU"]
     legend_handles = [handles[labels.index(m)] for m in legend_order]
 
     fig.legend(
     legend_handles, legend_order,
     loc="upper center",
-    ncols=6,
+    ncols=len(legend_order),
     bbox_to_anchor=(0.5, .99),
     fontsize=14
     )
@@ -628,13 +630,14 @@ def plot_metrics(model_metrics, save_fig=False):
     ]
 
     # Plotting order: Baseline LAST
-    plot_order = ["Physics", "Res-MLP", "Hybrid", "Res-LSTM", "Naïve"]
+    plot_order = ["Physics", "Res-MLP", "Hybrid", "Res-LSTM", "Lag+GRU", "Naïve"]
 
     model_styles = {
         "Physics": ('-', 'tab:blue'),
         "Res-MLP": ('-', 'tab:orange'),
         "Hybrid": ('-', 'tab:purple'),
         "Res-LSTM": ('-', 'tab:green'),
+        "Lag+GRU": ('-', 'tab:brown'),
         "Naïve": ('--', 'tab:red'),
     }
 
@@ -673,13 +676,13 @@ def plot_metrics(model_metrics, save_fig=False):
     handles, labels = axs[0].get_legend_handles_labels()
 
     # Reorder legend so Baseline is FIRST
-    legend_order = ["Naïve", "Physics", "Res-MLP", "Hybrid", "Res-LSTM"]
+    legend_order = ["Naïve", "Physics", "Res-MLP", "Hybrid", "Res-LSTM", "Lag+GRU"]
     legend_handles = [handles[labels.index(m)] for m in legend_order]
 
     fig.legend(
         legend_handles, legend_order,
         loc="upper center",
-        ncols=5,
+        ncols=len(legend_order),
         bbox_to_anchor=(0.5, 1.15),
         fontsize=14
     )
@@ -689,4 +692,3 @@ def plot_metrics(model_metrics, save_fig=False):
         plt.savefig("../figures/metrics_models.pdf", bbox_inches='tight')
 
     plt.show()
-
