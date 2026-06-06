@@ -1,3 +1,5 @@
+import math
+
 import torch
 import torch.nn as nn
 
@@ -45,6 +47,11 @@ class RawGRUPhysResModel(nn.Module):
 
         self.h_init = nn.Sequential(nn.Linear(state_dim, self.gru_hidden_dim), nn.Tanh())
         self.gru_cell = nn.GRUCell(feature_dim, self.gru_hidden_dim)
+        self.attn_query = nn.Linear(feature_dim, self.gru_hidden_dim)
+        self.attn_key = nn.Linear(self.gru_hidden_dim, self.gru_hidden_dim, bias=False)
+        self.attn_gate = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
+        nn.init.zeros_(self.attn_gate.weight)
+        nn.init.constant_(self.attn_gate.bias, -2.0)
 
     @staticmethod
     def _scaler_to_tensors(scaler, dim):
@@ -120,6 +127,16 @@ class RawGRUPhysResModel(nn.Module):
     def _pack_features(x_norm, u_raw_norm, h):
         return torch.cat([x_norm, u_raw_norm, h], dim=-1)
 
+    def _attend_hidden(self, x_norm, u_raw_norm, h, h_history):
+        history = torch.stack(h_history, dim=1)
+        query = torch.tanh(self.attn_query(self._pack_features(x_norm, u_raw_norm, h)))
+        keys = torch.tanh(self.attn_key(history))
+        scores = (keys * query.unsqueeze(1)).sum(dim=-1) / math.sqrt(self.gru_hidden_dim)
+        weights = torch.softmax(scores, dim=1).unsqueeze(-1)
+        context = (weights * history).sum(dim=1)
+        gate = torch.sigmoid(self.attn_gate(torch.cat([h, context], dim=-1)))
+        return h + gate * (context - h)
+
     def forward(self, x0, u_seq):
         if u_seq.ndim == 2:
             u_seq = u_seq.unsqueeze(1)
@@ -128,6 +145,7 @@ class RawGRUPhysResModel(nn.Module):
         _, horizon, _ = u_seq.shape
         preds = []
         h = self.h_init(x_norm)
+        h_history = []
 
         for t in range(horizon):
             u_raw_norm = u_seq[:, t, :]
@@ -139,8 +157,10 @@ class RawGRUPhysResModel(nn.Module):
 
             gru_in = self._pack_features(x_norm, u_raw_norm, h)
             h = self.gru_cell(gru_in, h)
+            h_history.append(h)
+            h_res = self._attend_hidden(x_norm, u_raw_norm, h, h_history)
 
-            residual_in = self._pack_features(x_norm, u_raw_norm, h)
+            residual_in = self._pack_features(x_norm, u_raw_norm, h_res)
             dx_res = self.residual.out(self.residual.mlp(residual_in))
             x_next_norm = x_phys_next_norm + dx_res
 
