@@ -162,7 +162,7 @@ class RawGRUPhysResModel(nn.Module):
             h_res = self._attend_hidden(x_norm, u_raw_norm, h, h_history)
             h_history.append(h)
 
-            residual_in = self._pack_features(x_norm, u_raw_norm, h_res)
+            residual_in = self._pack_features(x_phys_next_norm, u_raw_norm, h_res)
             dx_res = self.residual.out(self.residual.mlp(residual_in))
             x_next_norm = x_phys_next_norm + dx_res
 
