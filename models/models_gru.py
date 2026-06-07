@@ -46,7 +46,6 @@ class RawGRUPhysResModel(nn.Module):
         self.register_buffer("u_scale", u_scale)
 
         self.h_init = nn.Sequential(nn.Linear(state_dim, self.gru_hidden_dim), nn.Tanh())
-        self.h_norm = nn.LayerNorm(self.gru_hidden_dim, elementwise_affine=False)
         self.gru_cell = nn.GRUCell(feature_dim, self.gru_hidden_dim)
         self.attn_query = nn.Linear(feature_dim, self.gru_hidden_dim)
         self.attn_key = nn.Linear(self.gru_hidden_dim, self.gru_hidden_dim, bias=False)
@@ -147,7 +146,7 @@ class RawGRUPhysResModel(nn.Module):
 
         _, horizon, _ = u_seq.shape
         preds = []
-        h = self.h_norm(self.h_init(x_norm))
+        h = self.h_init(x_norm)
         h_history = []
 
         for t in range(horizon):
@@ -159,7 +158,7 @@ class RawGRUPhysResModel(nn.Module):
             x_phys_next_norm = self.x_normed(x_phys_next_real)
 
             gru_in = self._pack_features(x_norm, u_raw_norm, h)
-            h = self.h_norm(self.gru_cell(gru_in, h))
+            h = self.gru_cell(gru_in, h)
             h_res = self._attend_hidden(x_norm, u_raw_norm, h, h_history)
             h_history.append(h)
 
