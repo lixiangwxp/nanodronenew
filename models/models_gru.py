@@ -128,6 +128,8 @@ class RawGRUPhysResModel(nn.Module):
         return torch.cat([x_norm, u_raw_norm, h], dim=-1)
 
     def _attend_hidden(self, x_norm, u_raw_norm, h, h_history):
+        if not h_history:
+            return h
         history = torch.stack(h_history, dim=1)
         query = torch.tanh(self.attn_query(self._pack_features(x_norm, u_raw_norm, h)))
         keys = torch.tanh(self.attn_key(history))
@@ -157,8 +159,8 @@ class RawGRUPhysResModel(nn.Module):
 
             gru_in = self._pack_features(x_norm, u_raw_norm, h)
             h = self.gru_cell(gru_in, h)
-            h_history.append(h)
             h_res = self._attend_hidden(x_norm, u_raw_norm, h, h_history)
+            h_history.append(h)
 
             residual_in = self._pack_features(x_norm, u_raw_norm, h_res)
             dx_res = self.residual.out(self.residual.mlp(residual_in))
