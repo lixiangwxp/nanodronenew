@@ -33,6 +33,7 @@ class RawGRUPhysResModel(nn.Module):
         state_dim = residual.out.out_features
         control_dim = 4
         feature_dim = state_dim + control_dim + self.gru_hidden_dim
+        gru_input_dim = state_dim + control_dim
         self._validate_residual_input(
             state_dim=state_dim,
             control_feat_dim=control_dim + self.gru_hidden_dim,
@@ -46,7 +47,7 @@ class RawGRUPhysResModel(nn.Module):
         self.register_buffer("u_scale", u_scale)
 
         self.h_init = nn.Sequential(nn.Linear(state_dim, self.gru_hidden_dim), nn.Tanh())
-        self.gru_cell = nn.GRUCell(feature_dim, self.gru_hidden_dim)
+        self.gru_cell = nn.GRUCell(gru_input_dim, self.gru_hidden_dim)
         self.attn_query = nn.Linear(feature_dim, self.gru_hidden_dim)
         self.attn_key = nn.Linear(self.gru_hidden_dim, self.gru_hidden_dim, bias=False)
         self.attn_gate = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
@@ -157,7 +158,7 @@ class RawGRUPhysResModel(nn.Module):
             x_phys_next_real = self.physics_step_from_motors(x_real, u_raw_real)
             x_phys_next_norm = self.x_normed(x_phys_next_real)
 
-            gru_in = self._pack_features(x_norm, u_raw_norm, h)
+            gru_in = torch.cat([x_norm, u_raw_norm], dim=-1)
             h = self.gru_cell(gru_in, h)
             h_res = self._attend_hidden(x_norm, u_raw_norm, h, h_history)
             h_history.append(h)
