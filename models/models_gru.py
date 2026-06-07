@@ -50,7 +50,6 @@ class RawGRUPhysResModel(nn.Module):
         self.attn_query = nn.Linear(feature_dim, self.gru_hidden_dim)
         self.attn_key = nn.Linear(self.gru_hidden_dim, self.gru_hidden_dim, bias=False)
         self.attn_gate = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
-        self.attn_window = 16
         nn.init.zeros_(self.attn_gate.weight)
         nn.init.constant_(self.attn_gate.bias, -2.0)
 
@@ -129,7 +128,7 @@ class RawGRUPhysResModel(nn.Module):
         return torch.cat([x_norm, u_raw_norm, h], dim=-1)
 
     def _attend_hidden(self, x_norm, u_raw_norm, h, h_history):
-        history = torch.stack(h_history[-self.attn_window :], dim=1)
+        history = torch.stack(h_history, dim=1)
         query = torch.tanh(self.attn_query(self._pack_features(x_norm, u_raw_norm, h)))
         keys = torch.tanh(self.attn_key(history))
         scores = (keys * query.unsqueeze(1)).sum(dim=-1) / math.sqrt(self.gru_hidden_dim)
