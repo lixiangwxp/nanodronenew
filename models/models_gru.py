@@ -51,7 +51,7 @@ class RawGRUPhysResModel(nn.Module):
         self.attn_key = nn.Linear(self.gru_hidden_dim, self.gru_hidden_dim, bias=False)
         self.attn_gate = nn.Linear(2 * self.gru_hidden_dim, self.gru_hidden_dim)
         nn.init.zeros_(self.attn_gate.weight)
-        nn.init.constant_(self.attn_gate.bias, -2.0)
+        nn.init.constant_(self.attn_gate.bias, -6.0)
 
     @staticmethod
     def _scaler_to_tensors(scaler, dim):
