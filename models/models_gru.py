@@ -159,7 +159,7 @@ class RawGRUPhysResModel(nn.Module):
 
             gru_in = self._pack_features(x_norm, u_raw_norm, h)
             h = self.gru_cell(gru_in, h)
-            h_res = self._attend_hidden(x_norm, u_raw_norm, h, h_history)
+            h_res = self._attend_hidden(x_phys_next_norm, u_raw_norm, h, h_history)
             h_history.append(h)
 
             residual_in = self._pack_features(x_phys_next_norm, u_raw_norm, h_res)
