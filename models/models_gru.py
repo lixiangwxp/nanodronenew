@@ -157,7 +157,7 @@ class RawGRUPhysResModel(nn.Module):
             x_phys_next_real = self.physics_step_from_motors(x_real, u_raw_real)
             x_phys_next_norm = self.x_normed(x_phys_next_real)
 
-            gru_in = self._pack_features(x_norm, u_raw_norm, h)
+            gru_in = self._pack_features(x_phys_next_norm, u_raw_norm, h)
             h = self.gru_cell(gru_in, h)
             h_res = self._attend_hidden(x_norm, u_raw_norm, h, h_history)
             h_history.append(h)
